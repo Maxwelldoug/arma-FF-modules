@@ -1,5 +1,5 @@
 /*
-    Author: WoodenPlank
+    Author:  WoodenPlankGames
     Function: WP_fnc_moduleFirezone
     Description:
         Places a network of hex-gridded wildfire modules at terrain altitude
