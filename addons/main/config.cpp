@@ -183,7 +183,7 @@ class CfgWaypoints {
         class WP_FireSuppression {
             displayName = "Suppress Fire";
             displayNameDebug = "WP_FireSuppression";
-            file = "addons\main\functions\fn_moduleSuppression.sqf";
+            file = "functions\fn_moduleSuppression.sqf";
             icon = "\a3\ui_f\data\igui\cfg\simpletasks\types\defend_ca.paa";
             tooltip = "Orders vehicle turrets to engage and extinguish nearby wildfires with ballistic drop compensation.";
         };
