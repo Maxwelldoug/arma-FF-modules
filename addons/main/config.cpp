@@ -1,7 +1,7 @@
 class CfgPatches {
     class WP_Firefighting {
         name = "WoodenPlank Firefighting Modules";
-        author = "WoodenPlank";
+        author = "WoodenPlankGames";
         url = "";
         units[] = {
             "WP_Module_Firezone",
