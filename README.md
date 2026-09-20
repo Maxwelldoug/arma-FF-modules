@@ -1,0 +1,8 @@
+# WoodenPlank Firefighting Modules.
+
+This mod was designed to make working with the Reaction Forces Firefighting modules less ludicrously painful. It adds 3 modules:
+- Firezone: This module uses 3 sliders (size 5-50m, spacing 5-50m, intensity 0-100%.) as well as the default area setup (as used by, for example, the hide terrain objects module) to place a network of hex gridded wildfire modules (at terrain altitude). These modules have all adjacent modules synced for fire spread. If two fire zones are close together, their modules will be synced (using the radius of the larger set of wildfire modules) together to allow fire to move between the zones as well.
+- Hotspot: This module overrides the intensity of all wildfire modules within its zone to whatever is set. It does not check if the new intensity is hotter than original (and thus can be used for cold spots as well) but if multiple hotspots affect the same wildfire, the highest intensity takes priority.
+- Fire Supression: This (waypoint) module, when added to a vehicle, orders its turrets to suppress the nearest in range wildfire, accounting for projectile drop if more than one turret is available, the second will target the second closest wildfire, etc. It is the only module added that can be placed in zeus (as a waypoint) and I recommend only using it with fire trucks, as firing a machine gun at a fire seems unproductive.
+
+While the fire supression module may have performance implications due to its looped interaction with AI, the firezone and hotspot modules should have no performance implication after mission start, as they only need to place down their sub-modules once before permanently deactivating.
