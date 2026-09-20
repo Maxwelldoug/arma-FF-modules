@@ -28,7 +28,7 @@ class CfgFunctions {
     class WP {
         tag = "WP";
         class Firefighting {
-            file = "addons\main\functions";
+            file = "functions";
             class moduleFirezone {};
             class moduleHotspot {};
             class moduleSuppression {};
