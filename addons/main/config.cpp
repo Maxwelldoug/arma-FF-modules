@@ -11,7 +11,8 @@ class CfgPatches {
         weapons[] = {};
         requiredVersion = 2.14;
         requiredAddons[] = {
-            "A3_Modules_F"
+            "A3_Modules_F",
+            "RF_Data"
         };
     };
 };
