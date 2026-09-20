@@ -5,32 +5,40 @@
         Overrides the intensity of all wildfire modules within its zone to whatever is set.
         Does not check if the new intensity is hotter than original (can be used for cold spots),
         but if multiple hotspots affect the same wildfire, the highest intensity takes priority.
-
-    Parameters:
-        0: OBJECT - Module logic entity
-        1: ARRAY - Synchronized units/objects
-        2: BOOLEAN - Activated
-
-    Returns:
-        ARRAY of Objects - Affected wildfire modules
 */
 
-params [
-    ["_logic", objNull, [objNull]],
-    ["_units", [], [[]]],
-    ["_activated", true, [true]]
-];
+// Support both [mode, input, activated] and [logic, units, activated] calling styles
+private _logic = objNull;
+private _units = [];
+private _activated = true;
+
+if (count _this > 0) then {
+    private _first = _this select 0;
+    if (_first isEqualType "") then {
+        private _input = _this param [1, [], [[]]];
+        _activated = _this param [2, true, [true]];
+        if (count _input > 0) then {
+            _logic = _input select 0;
+            if (count _input > 1) then { _units = _input select 1; };
+        };
+    } else {
+        _logic = _first;
+        _units = _this param [1, [], [[]]];
+        _activated = _this param [2, true, [true]];
+    };
+};
 
 // Execute only on the server
 if (!isServer) exitWith { [] };
 if (!_activated || isNull _logic) exitWith { [] };
 
-// Retrieve intensity slider attribute (0-100%)
-private _intensityVal = ((_logic getVariable ["intensity", 100]) max 0) min 100;
-private _newIntensity = _intensityVal / 100; // Convert to 0-1 scale
+diag_log format ["[WP Firefighting] Initializing Hotspot module: %1 at %2", _logic, getPos _logic];
+
+// Retrieve intensity slider attribute (support both "property" name and short name)
+private _intensityRaw = _logic getVariable ["intensity", _logic getVariable ["WP_Module_Hotspot_intensity", 100]];
+private _newIntensity = ((_intensityRaw max 0) min 100) / 100;
 
 // Gather candidate wildfire modules
-// Check all known created wildfires from firezones, plus any Module_WildFire_RF in the mission
 private _candidateWildfires = [];
 
 if (!isNil "WP_firezones") then {
@@ -52,7 +60,6 @@ private _affectedWildfires = [];
 {
     private _wf = _x;
     if (!isNull _wf && { (getPos _wf) inArea _logic }) then {
-        // Priority rule: if multiple hotspots affect the same wildfire, highest intensity takes priority
         private _currentOverride = _wf getVariable ["WP_hotspotIntensity", -1];
 
         if (_newIntensity > _currentOverride) then {
@@ -67,5 +74,10 @@ private _affectedWildfires = [];
         };
     };
 } forEach _candidateWildfires;
+
+diag_log format ["[WP Firefighting] Hotspot %1 affected %2 wildfire nodes.", _logic, count _affectedWildfires];
+
+// Delete the module entity after setup
+deleteVehicle _logic;
 
 _affectedWildfires
