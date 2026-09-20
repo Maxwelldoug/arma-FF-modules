@@ -1,4 +1,4 @@
-# WoodenPlank Firefighting Modules.
+# WoodenPlank Firefighting Modules for Arma 3.
 
 This mod was designed to make working with the Reaction Forces Firefighting modules less ludicrously painful. It adds 3 modules:
 - Firezone: This module uses 3 sliders (size 5-50m, spacing 5-50m, intensity 0-100%.) as well as the default area setup (as used by, for example, the hide terrain objects module) to place a network of hex gridded wildfire modules (at terrain altitude). These modules have all adjacent modules synced for fire spread. If two fire zones are close together, their modules will be synced (using the radius of the larger set of wildfire modules) together to allow fire to move between the zones as well.
