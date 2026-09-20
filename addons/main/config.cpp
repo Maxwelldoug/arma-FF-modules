@@ -28,7 +28,7 @@ class CfgFunctions {
     class WP {
         tag = "WP";
         class Firefighting {
-            file = "\wp_FireFighting\functions";
+            file = "\wp_firefighting\functions";
             class moduleFirezone {};
             class moduleHotspot {};
             class moduleSuppression {};
@@ -183,7 +183,7 @@ class CfgWaypoints {
         class WP_FireSuppression {
             displayName = "Suppress Fire";
             displayNameDebug = "WP_FireSuppression";
-            file = "\wp_FireFighting\functions\fn_moduleSuppression.sqf";
+            file = "\wp_firefighting\functions\fn_moduleSuppression.sqf";
             icon = "\a3\ui_f\data\igui\cfg\simpletasks\types\defend_ca.paa";
             tooltip = "Orders vehicle turrets to engage and extinguish nearby wildfires with ballistic drop compensation.";
         };
