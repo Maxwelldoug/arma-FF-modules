@@ -56,13 +56,15 @@ class CfgVehicles {
     class WP_Module_Firezone: Module_F {
         scope = 2; // Editor & Zeus placement
         displayName = "Firezone";
-        icon = "\a3\Modules_F_Curator\Data\iconFire_ca.paa";
+        icon = "\a3\ui_f\data\igui\cfg\simpletasks\types\destroy_ca.paa";
+        portrait = "\a3\ui_f\data\igui\cfg\simpletasks\types\destroy_ca.paa";
+        picture = "\a3\ui_f\data\igui\cfg\simpletasks\types\destroy_ca.paa";
         category = "WP_Firefighting_Category";
         function = "WP_fnc_moduleFirezone";
         functionPriority = 1;
         isGlobal = 0; // Handled on server
         isTriggerActivated = 0;
-        isDisposable = 1;
+        isDisposable = 0;
         is3DEN = 0;
 
         // Enable 3DEN Area definition (shape, dimensions, rotation)
@@ -110,13 +112,15 @@ class CfgVehicles {
     class WP_Module_Hotspot: Module_F {
         scope = 2;
         displayName = "Hotspot";
-        icon = "\a3\Modules_F_Curator\Data\iconFire_ca.paa";
+        icon = "\a3\ui_f\data\igui\cfg\simpletasks\types\danger_ca.paa";
+        portrait = "\a3\ui_f\data\igui\cfg\simpletasks\types\danger_ca.paa";
+        picture = "\a3\ui_f\data\igui\cfg\simpletasks\types\danger_ca.paa";
         category = "WP_Firefighting_Category";
         function = "WP_fnc_moduleHotspot";
         functionPriority = 2; // Runs after Firezone
         isGlobal = 0; // Server-side
         isTriggerActivated = 0;
-        isDisposable = 1;
+        isDisposable = 0;
         is3DEN = 0;
 
         // Area attributes
@@ -151,7 +155,9 @@ class CfgVehicles {
         scope = 2;
         curatorCanAttach = 1; // Allows attaching to vehicles in Zeus
         displayName = "Fire Suppression";
-        icon = "\a3\Modules_F_Curator\Data\iconWater_ca.paa";
+        icon = "\a3\ui_f\data\igui\cfg\simpletasks\types\defend_ca.paa";
+        portrait = "\a3\ui_f\data\igui\cfg\simpletasks\types\defend_ca.paa";
+        picture = "\a3\ui_f\data\igui\cfg\simpletasks\types\defend_ca.paa";
         category = "WP_Firefighting_Category";
         function = "WP_fnc_moduleSuppression";
         functionPriority = 1;
