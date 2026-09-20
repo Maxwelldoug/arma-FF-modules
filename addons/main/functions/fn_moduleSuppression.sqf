@@ -1,5 +1,5 @@
 /*
-    Author: WoodenPlank
+    Author: WoodenPlankGames
     Function: WP_fnc_moduleSuppression
     Description:
         Waypoint / Module for AI vehicle suppression of wildfires.

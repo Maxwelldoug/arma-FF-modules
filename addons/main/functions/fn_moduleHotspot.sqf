@@ -1,5 +1,5 @@
 /*
-    Author: WoodenPlank
+    Author: WoodenPlankGames
     Function: WP_fnc_moduleHotspot
     Description:
         Overrides the intensity of all wildfire modules within its zone to whatever is set.

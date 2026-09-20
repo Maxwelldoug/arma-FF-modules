@@ -1,5 +1,5 @@
 /*
-    Author: WoodenPlank
+    Author: WoodenPlankGames
     Function: WP_fnc_syncWildfires
     Description:
         Synchronizes wildfire modules that are within range of each other,
