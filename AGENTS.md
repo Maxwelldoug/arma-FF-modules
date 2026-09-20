@@ -1,0 +1,2 @@
+When working in this respository, always build code which is simple, performant, and maintainable.
+All changes must be checked into the git working tree, ideally as soon as they are performed, with granular commit messages. If you are making 3 distinct changes to the same file, such as correcting several instances of a misspelled variable name, changing the formula for placement location, and updating comments, these should ideally be 3 separate commits.
