@@ -270,13 +270,51 @@ _vehicle setVariable ["WP_suppressionActive", true];
                     _veh selectWeaponTurret [_weaponName, _turretPath];
                 };
 
-                if (combatMode (group _gunner) == "BLUE") then {
-                    (group _gunner) setCombatMode "YELLOW";
+                // Position / create local aim helper at high-elevation aim coordinates
+                private _helperVar = format ["WP_aimHelper_%1", _turretPath];
+                private _aimHelper = _veh getVariable [_helperVar, objNull];
+                if (isNull _aimHelper) then {
+                    _aimHelper = createVehicleLocal ["Land_HelipadEmpty_F", ASLToAGL _aimPosASL];
+                    _veh setVariable [_helperVar, _aimHelper];
                 };
+                _aimHelper setPosASL _aimPosASL;
 
-                _gunner doSuppressiveFire _aimPosASL;
+                // Fire sustained burst with sweeping dispersion across the wildfire
+                [_veh, _gunner, _aimHelper, _aimPosASL, _wfTarget, _weaponName] spawn {
+                    params ["_veh", "_gunner", "_aimHelper", "_aimPosASL", "_wfTarget", "_weaponName"];
+
+                    private _burstCount = 8;
+                    for "_i" from 1 to _burstCount do {
+                        if (!alive _veh || isNull _gunner || !alive _gunner) exitWith {};
+                        if (!(_veh getVariable ["WP_suppressionActive", false])) exitWith {};
+
+                        // Natural sweeping dispersion around target
+                        if (!isNull _aimHelper) then {
+                            private _sweepOffset = [
+                                (sin (_i * 45)) * 1.5,
+                                (cos (_i * 45)) * 1.5,
+                                0
+                            ];
+                            _aimHelper setPosASL (_aimPosASL vectorAdd _sweepOffset);
+                        };
+
+                        private _targetObj = if (!isNull _aimHelper) then { _aimHelper } else { _wfTarget };
+                        private _fired = _veh fireAtTarget [_targetObj, _weaponName];
+                        if (!_fired && !isNull _wfTarget) then {
+                            _veh fireAtTarget [_wfTarget, _weaponName];
+                        };
+
+                        sleep 0.1;
+                    };
+                };
             } else {
                 _gunner doWatch objNull;
+                private _helperVar = format ["WP_aimHelper_%1", _turretPath];
+                private _aimHelper = _veh getVariable [_helperVar, objNull];
+                if (!isNull _aimHelper) then {
+                    deleteVehicle _aimHelper;
+                    _veh setVariable [_helperVar, nil];
+                };
             };
         } forEach _activeTurretUnits;
 
@@ -284,7 +322,14 @@ _vehicle setVariable ["WP_suppressionActive", true];
     };
 
     {
-        private _gunner = _veh turretUnit _x;
+        private _turretPath = _x;
+        private _helperVar = format ["WP_aimHelper_%1", _turretPath];
+        private _aimHelper = _veh getVariable [_helperVar, objNull];
+        if (!isNull _aimHelper) then {
+            deleteVehicle _aimHelper;
+            _veh setVariable [_helperVar, nil];
+        };
+        private _gunner = _veh turretUnit _turretPath;
         if (!isNull _gunner) then {
             _gunner doWatch objNull;
         };
