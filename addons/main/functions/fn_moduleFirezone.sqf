@@ -154,19 +154,18 @@ for "_yRel" from _minY to _maxY step _rowHeight do {
             } forEach WP_allWildfirePositions;
 
             if (!_duplicate) then {
-                private _terrainZ = getTerrainHeightASL [_worldX, _worldY];
-                private _spawnPosASL = [_worldX, _worldY, _terrainZ];
+                private _spawnPos = [_worldX, _worldY, 0];
 
                 private _wf = objNull;
                 if (!isNil "lxRF_fnc_wildFire") then {
-                    _wf = [_spawnPosASL, "fireCreate", [_intensity, _size]] call lxRF_fnc_wildFire;
+                    _wf = [_spawnPos, "fireCreate", [_intensity, _size]] call lxRF_fnc_wildFire;
                 };
 
                 // Fallback if Reaction Forces function returned null or is unavailable
                 if (isNull _wf) then {
-                    _wf = createVehicle ["Module_WildFire_RF", [_worldX, _worldY, 0], [], 0, "CAN_COLLIDE"];
+                    _wf = createVehicle ["Module_WildFire_RF", _spawnPos, [], 0, "CAN_COLLIDE"];
                     if (!isNull _wf) then {
-                        _wf setPosASL _spawnPosASL;
+                        _wf setPosATL _spawnPos;
                         _wf setVariable ["size", _size, true];
                         _wf setVariable ["intensity", _intensity, true];
                         if (!isNil "lxRF_fnc_wildFire") then {
