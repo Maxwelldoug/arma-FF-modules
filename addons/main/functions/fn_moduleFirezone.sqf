@@ -37,18 +37,52 @@ if (!_activated || isNull _logic) exitWith { [] };
 
 diag_log format ["[WP Firefighting] Initializing Firezone module: %1 at %2", _logic, getPos _logic];
 
-// Retrieve module area properties: [a, b, angle, isRectangle, c]
-private _area = _logic getVariable ["objectArea", [50, 50, 0, false]];
-_area params [
-    ["_a", 50, [0]],
-    ["_b", 50, [0]],
-    ["_angle", 0, [0]],
-    ["_isRectangle", false, [false]]
-];
+// Retrieve module area definition: check for trigger object in "areas" variable first, fall back to "objectArea"
+private _areas = _logic getVariable ["areas", []];
+private _areaTrigger = if (count _areas > 0) then { _areas select 0 } else { objNull };
+
+private _a = 50;
+private _b = 50;
+private _angle = 0;
+private _isRectangle = false;
+private _center = getPosWorld _logic;
+
+if (!isNull _areaTrigger) then {
+    private _trigArea = triggerArea _areaTrigger;
+    _trigArea params [
+        ["_trigA", 50, [0]],
+        ["_trigB", 50, [0]],
+        ["_trigAngle", 0, [0]],
+        ["_trigIsRect", false, [false]]
+    ];
+    _a = _trigA;
+    _b = _trigB;
+    _angle = _trigAngle;
+    _isRectangle = _trigIsRect;
+    _center = getPosWorld _areaTrigger;
+} else {
+    private _area = _logic getVariable ["objectArea", [50, 50, 0, false]];
+    _area params [
+        ["_areaA", 50, [0]],
+        ["_areaB", 50, [0]],
+        ["_areaAngle", 0, [0]],
+        ["_areaIsRect", false, [false]]
+    ];
+    _a = _areaA;
+    _b = _areaB;
+    _angle = _areaAngle;
+    _isRectangle = _areaIsRect;
+};
 
 // Fallback dimensions if 0 or negative
 if (_a <= 0) then { _a = 50; };
 if (_b <= 0) then { _b = 50; };
+
+private _areaDef = if (!isNull _areaTrigger) then {
+    _areaTrigger
+} else {
+    [_center, _a, _b, _angle, _isRectangle]
+};
 
 // Retrieve slider attributes (support both "property" names and short names)
 private _sizeRaw = _logic getVariable ["size", _logic getVariable ["WP_Module_Firezone_size", 10]];
@@ -96,7 +130,13 @@ for "_yRel" from _minY to _maxY step _rowHeight do {
         private _testPos = [_worldX, _worldY, 0];
 
         // Check if candidate point is within module's defined area
-        if (_testPos inArea _logic) then {
+        private _inZone = if (count _areas > 0) then {
+            _areas findIf { !isNull _x && { _testPos inArea _x } } != -1
+        } else {
+            _testPos inArea _areaDef
+        };
+
+        if (_inZone) then {
             // Check if this location overlaps an existing wildfire node from another firezone
             // If another wildfire exists within (spacing * 0.75), skip creating a duplicate node
             private _duplicate = false;
@@ -160,7 +200,7 @@ diag_log format ["[WP Firefighting] Firezone %1 generated %2 wildfire nodes.", _
     private _otherZoneData = _x;
     _otherZoneData params ["_otherLogic", "_otherSpacing", "_otherWildfires"];
 
-    if (!isNull _otherLogic && {_otherLogic != _logic}) then {
+    if (_otherWildfires isNotEqualTo _createdWildfires && {count _otherWildfires > 0}) then {
         private _crossSpacing = _spacing max _otherSpacing;
         [_createdWildfires, _otherWildfires, _crossSpacing, 1.05] call WP_fnc_syncWildfires;
     };
@@ -171,6 +211,11 @@ WP_firezones pushBack [_logic, _spacing, _createdWildfires];
 
 // Store spawned wildfire references on logic
 _logic setVariable ["WP_wildfires", _createdWildfires, true];
+
+// Clean up associated trigger entities created for the module
+{
+    if (!isNull _x) then { deleteVehicle _x; };
+} forEach _areas;
 
 // Delete the module entity after placement and configuration is complete
 deleteVehicle _logic;
