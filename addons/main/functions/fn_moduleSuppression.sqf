@@ -129,15 +129,21 @@ _vehicle setVariable ["WP_suppressionActive", true];
         };
 
         // Check if vehicle has water/ammunition remaining
-        private _hasAmmo = true;
-        private _turretMags = _veh magazinesAmmoTurret _mainTurret;
-        if (count _turretMags > 0) then {
-            _hasAmmo = false;
-            {
-                if ((_x select 1) > 0) exitWith { _hasAmmo = true; };
-            } forEach _turretMags;
-        } else {
-            _hasAmmo = someAmmo _veh;
+        private _hasAmmo = someAmmo _veh;
+        private _allMags = magazinesAllTurrets _veh;
+        private _foundTurretMag = false;
+        private _turretHasAmmo = false;
+
+        {
+            _x params ["", "_tPath", "_count"];
+            if (_tPath isEqualTo _mainTurret) then {
+                _foundTurretMag = true;
+                if (_count > 0) then { _turretHasAmmo = true; };
+            };
+        } forEach _allMags;
+
+        if (_foundTurretMag) then {
+            _hasAmmo = _turretHasAmmo;
         };
 
         if (!_hasAmmo) exitWith {
