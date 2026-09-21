@@ -93,7 +93,6 @@ private _size = ((_sizeRaw max 5) min 50);
 private _spacing = ((_spacingRaw max 5) min 50);
 private _intensity = (((_intensityRaw max 0) min 100) / 100);
 
-private _center = getPosWorld _logic;
 _center params ["_centerX", "_centerY"];
 
 // Hexagonal grid geometry parameters
