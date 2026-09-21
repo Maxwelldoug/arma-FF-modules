@@ -270,8 +270,11 @@ _vehicle setVariable ["WP_suppressionActive", true];
                     _veh selectWeaponTurret [_weaponName, _turretPath];
                 };
 
-                _gunner doFire _wfTarget;
-                _veh fireAtTarget [_wfTarget, _weaponName];
+                if (combatMode (group _gunner) == "BLUE") then {
+                    (group _gunner) setCombatMode "YELLOW";
+                };
+
+                _gunner doSuppressiveFire _aimPosASL;
             } else {
                 _gunner doWatch objNull;
             };
@@ -279,6 +282,13 @@ _vehicle setVariable ["WP_suppressionActive", true];
 
         sleep 1.5;
     };
+
+    {
+        private _gunner = _veh turretUnit _x;
+        if (!isNull _gunner) then {
+            _gunner doWatch objNull;
+        };
+    } forEach (allTurrets [_veh, false]);
 
     _veh setVariable ["WP_suppressionActive", false];
     diag_log format ["[WP Firefighting] Fire suppression loop ended for vehicle: %1", typeOf _veh];
