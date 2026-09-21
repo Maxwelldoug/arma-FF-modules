@@ -322,7 +322,8 @@ _vehicle setVariable ["WP_suppressionActive", true];
 
         // Create or update invisible target entity at high-elevation aim coordinates
         if (isNull _suppressTarget) then {
-            _suppressTarget = createVehicle ["InvisibleTargetVR", ASLToAGL _aimPosASL, [], 0, "CAN_COLLIDE"];
+            _suppressTarget = createVehicle ["Land_HelipadEmpty_F", ASLToAGL _aimPosASL, [], 0, "CAN_COLLIDE"];
+            _suppressTarget allowDamage false;
         };
         _suppressTarget setPosASL _aimPosASL;
 
