@@ -110,6 +110,11 @@ _vehicle setVariable ["WP_suppressionActive", true];
 
     private _suppressTarget = objNull;
     private _currentTarget = objNull;
+    private _isNewTarget = true;
+    private _savedOriginalState = false;
+    private _origBehaviour = "CARELESS";
+    private _origCombatMode = "YELLOW";
+    private _disabledAbilities = ["AIMINGERROR", "AUTOTARGET", "FSM", "PATH", "SUPPRESSION", "TARGET"];
 
     while { alive _veh && (_veh getVariable ["WP_suppressionActive", false]) } do {
         private _mainTurret = [0];
@@ -122,10 +127,19 @@ _vehicle setVariable ["WP_suppressionActive", true];
         if (isNull _gunner) then {
             _gunner = _veh turretUnit _mainTurret;
         };
+        if (isNull _gunner) then {
+            _gunner = effectiveCommander _veh;
+        };
 
         if (!isNull _gunner && {!alive _gunner}) then {
             sleep 2;
             continue;
+        };
+
+        if (!_savedOriginalState && {!isNull _gunner}) then {
+            _origBehaviour = combatBehaviour _gunner;
+            _origCombatMode = unitCombatMode _gunner;
+            _savedOriginalState = true;
         };
 
         // Check if vehicle has water/ammunition remaining
@@ -158,11 +172,18 @@ _vehicle setVariable ["WP_suppressionActive", true];
         };
 
         private _weapons = _veh weaponsTurret _mainTurret;
-        if (count _weapons > 0) then {
-            private _weaponName = _weapons select 0;
-            if (_veh currentWeaponTurret _mainTurret != _weaponName) then {
-                _veh selectWeaponTurret [_weaponName, _mainTurret];
+        private _weaponName = "";
+        {
+            if !(_x isKindOf ["CarHorn", configFile >> "CfgWeapons"]) exitWith {
+                _weaponName = _x;
             };
+        } forEach _weapons;
+        if (_weaponName == "" && count _weapons > 0) then {
+            _weaponName = _weapons select 0;
+        };
+
+        if (_weaponName != "" && {_veh currentWeaponTurret _mainTurret != _weaponName}) then {
+            _veh selectWeaponTurret [_weaponName, _mainTurret];
         };
 
         private _candidateWildfires = [];
@@ -217,9 +238,12 @@ _vehicle setVariable ["WP_suppressionActive", true];
                 _suppressTarget = objNull;
             };
             _currentTarget = objNull;
+            _isNewTarget = true;
             _veh doWatch objNull;
             if (!isNull _gunner) then {
                 _gunner doWatch objNull;
+                _gunner lookAt objNull;
+                _gunner doTarget objNull;
             };
             sleep 2;
             continue;
@@ -234,6 +258,7 @@ _vehicle setVariable ["WP_suppressionActive", true];
                 deleteVehicle _suppressTarget;
                 _suppressTarget = objNull;
             };
+            _isNewTarget = true;
         };
         _currentTarget = _wfTarget;
 
@@ -324,38 +349,65 @@ _vehicle setVariable ["WP_suppressionActive", true];
         if (isNull _suppressTarget) then {
             _suppressTarget = createVehicle ["Land_HelipadEmpty_F", ASLToAGL _aimPosASL, [], 0, "CAN_COLLIDE"];
             _suppressTarget allowDamage false;
+            _isNewTarget = true;
         };
         _suppressTarget setPosASL _aimPosASL;
 
-        // Reveal target to vehicle group and ensure combat-ready state
-        private _grp = group _veh;
-        if (isNull _grp && {!isNull _gunner}) then { _grp = group _gunner; };
-        if (!isNull _grp) then {
-            _grp reveal [_suppressTarget, 4];
-            _grp setCombatMode "RED";
-            _grp setBehaviour "COMBAT";
-        };
-        if (!isNull _gunner && {group _gunner != _grp}) then {
-            (group _gunner) reveal [_suppressTarget, 4];
-            (group _gunner) setCombatMode "RED";
-            (group _gunner) setBehaviour "COMBAT";
-        };
-
-        // Order suppressive fire onto target without doWatch interruption
-        _veh doSuppressiveFire _suppressTarget;
+        // Configure AI for direct turret engagement (matching ZEN's suppressive fire technique)
         if (!isNull _gunner) then {
-            _gunner doSuppressiveFire _suppressTarget;
+            { _gunner disableAI _x; } forEach _disabledAbilities;
+            _gunner setSkill 1;
+            _gunner setCombatBehaviour "COMBAT";
+            _gunner setUnitCombatMode "BLUE";
+
+            _gunner reveal [_suppressTarget, 4];
+            _gunner lookAt _suppressTarget;
+            _gunner doWatch _suppressTarget;
+            _gunner doTarget _suppressTarget;
         };
 
-        // Allow sustained suppressive fire burst to complete before re-evaluating
-        private _suppressEndTime = time + 8;
-        waitUntil {
-            sleep 1;
-            time >= _suppressEndTime
-            || !alive _veh
-            || !(_veh getVariable ["WP_suppressionActive", false])
-            || !someAmmo _veh
+        // Give turret time to traverse and align on new target
+        if (_isNewTarget) then {
+            sleep 2;
+            _isNewTarget = false;
         };
+
+        // Fire burst of rounds
+        private _reloadTime = 0.08;
+        if (_weaponName != "") then {
+            private _wCfg = configFile >> "CfgWeapons" >> _weaponName;
+            if (isNumber (_wCfg >> "reloadTime")) then {
+                _reloadTime = getNumber (_wCfg >> "reloadTime");
+            };
+        };
+        if (_reloadTime <= 0) then { _reloadTime = 0.08; };
+        _reloadTime = _reloadTime max 0.05;
+
+        private _burstCount = 12;
+        for "_i" from 1 to _burstCount do {
+            if (!alive _veh || isNull _gunner || !alive _gunner) exitWith {};
+            if (!someAmmo _veh) exitWith {};
+            if (!(_veh getVariable ["WP_suppressionActive", false])) exitWith {};
+
+            if (!isNil "zen_common_fnc_fireWeapon") then {
+                [_gunner, false] call zen_common_fnc_fireWeapon;
+            } else {
+                private _magDetail = _veh currentMagazineDetailTurret _mainTurret;
+                if (_magDetail != "") then {
+                    private _split = _magDetail splitString "[:/]";
+                    if (count _split >= 2) then {
+                        private _id = parseNumber (_split select (count _split - 2));
+                        private _owner = parseNumber (_split select (count _split - 1));
+                        _veh action ["UseMagazine", _veh, _gunner, _owner, _id];
+                    };
+                };
+                _gunner forceWeaponFire [_weaponName, "FullAuto"];
+            };
+
+            sleep _reloadTime;
+        };
+
+        sleep 0.4;
     };
 
     if (!isNull _suppressTarget) then {
@@ -363,10 +415,18 @@ _vehicle setVariable ["WP_suppressionActive", true];
         _suppressTarget = objNull;
     };
 
-    _veh doWatch objNull;
-    if (!isNull (gunner _veh)) then {
-        (gunner _veh) doWatch objNull;
+    if (!isNull _gunner && {alive _gunner}) then {
+        {
+            _gunner enableAI _x;
+        } forEach _disabledAbilities;
+
+        _gunner setCombatBehaviour _origBehaviour;
+        _gunner setUnitCombatMode _origCombatMode;
+        _gunner doWatch objNull;
+        _gunner lookAt objNull;
+        _gunner doTarget objNull;
     };
+    _veh doWatch objNull;
 
     _veh setVariable ["WP_suppressionActive", false];
     diag_log format ["[WP Firefighting] Fire suppression loop ended for vehicle: %1", typeOf _veh];
