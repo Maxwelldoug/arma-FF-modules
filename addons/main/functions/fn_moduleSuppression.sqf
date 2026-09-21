@@ -3,9 +3,9 @@
     Function: WP_fnc_moduleSuppression
     Description:
         Waypoint / Module for AI vehicle suppression of wildfires.
-        Orders vehicle turrets to suppress the nearest in-range wildfire,
-        accounting for projectile drop. If multiple turrets are available,
-        the 2nd turret targets the 2nd closest wildfire, etc.
+        Orders the vehicle to suppress the nearest in-range wildfire,
+        preferring high-elevation ballistic trajectories for obstacle
+        clearance and water dispersion.
 */
 
 private _vehicle = objNull;
@@ -109,27 +109,30 @@ _vehicle setVariable ["WP_suppressionActive", true];
     diag_log format ["[WP Firefighting] Starting fire suppression loop for vehicle: %1", typeOf _veh];
 
     while { alive _veh && (_veh getVariable ["WP_suppressionActive", false]) } do {
+        private _mainTurret = [0];
         private _allTurrets = allTurrets [_veh, false];
-        private _activeTurretUnits = [];
+        if (count _allTurrets > 0) then {
+            _mainTurret = _allTurrets select 0;
+        };
 
-        {
-            private _turretPath = _x;
-            private _gunner = _veh turretUnit _turretPath;
+        private _gunner = gunner _veh;
+        if (isNull _gunner) then {
+            _gunner = _veh turretUnit _mainTurret;
+        };
 
-            if (!isNull _gunner && {alive _gunner}) then {
-                private _weapons = _veh weaponsTurret _turretPath;
-                if (count _weapons > 0) then {
-                    _activeTurretUnits pushBack [_turretPath, _gunner, _weapons select 0];
-                };
-            };
-        } forEach _allTurrets;
-
-        if (count _activeTurretUnits == 0) then {
+        if (!isNull _gunner && {!alive _gunner}) then {
             sleep 2;
             continue;
         };
 
-        private _vehPos = getPosASL _veh;
+        private _weapons = _veh weaponsTurret _mainTurret;
+        if (count _weapons > 0) then {
+            private _weaponName = _weapons select 0;
+            if (_veh currentWeaponTurret _mainTurret != _weaponName) then {
+                _veh selectWeaponTurret [_weaponName, _mainTurret];
+            };
+        };
+
         private _candidateWildfires = [];
 
         if (!isNil "WP_firezones") then {
@@ -175,165 +178,123 @@ _vehicle setVariable ["WP_suppressionActive", true];
 
         _candidateWildfires sort true;
 
-        {
-            _x params ["_turretPath", "_gunner", "_weaponName"];
-            private _targetIndex = _forEachIndex;
+        if (count _candidateWildfires > 0) then {
+            private _wfTarget = (_candidateWildfires select 0) select 1;
+            private _wfPosASL = getPosASL _wfTarget;
 
-            if (_targetIndex < count _candidateWildfires) then {
-                private _wfTarget = (_candidateWildfires select _targetIndex) select 1;
-                private _wfPosASL = getPosASL _wfTarget;
-
-                // Turret elevation limits
-                private _minElev = -10;
-                private _maxElev = 80;
-                private _turretLimits = _veh getTurretLimits _turretPath;
-                if (count _turretLimits >= 4) then {
-                    _minElev = _turretLimits select 2;
-                    _maxElev = _turretLimits select 3;
-                } else {
-                    private _turretCfg = [_veh, _turretPath] call BIS_fnc_turretConfig;
-                    if (isClass _turretCfg) then {
-                        if (isNumber (_turretCfg >> "minElev")) then { _minElev = getNumber (_turretCfg >> "minElev"); };
-                        if (isNumber (_turretCfg >> "maxElev")) then { _maxElev = getNumber (_turretCfg >> "maxElev"); };
-                    };
-                };
-                if (_maxElev <= 0) then { _maxElev = 80; };
-                private _effectiveMaxElev = _maxElev min 85;
-
-                // Muzzle velocity
-                private _turretSpeed = _initSpeed;
-                private _currentMag = (_veh magazinesTurret _turretPath) param [0, ""];
-                if (_currentMag != "") then {
-                    private _magSpeed = getNumber (configFile >> "CfgMagazines" >> _currentMag >> "initSpeed");
-                    if (_magSpeed > 0) then { _turretSpeed = _magSpeed; };
-                };
-
-                // Turret origin ASL
-                private _originPosASL = eyePos _gunner;
-                if (_originPosASL isEqualTo [0, 0, 0]) then {
-                    _originPosASL = getPosASL _veh;
-                };
-
-                private _dx = (_wfPosASL select 0) - (_originPosASL select 0);
-                private _dy = (_wfPosASL select 1) - (_originPosASL select 1);
-                private _dz = (_wfPosASL select 2) - (_originPosASL select 2);
-                private _horizDist = sqrt (_dx * _dx + _dy * _dy);
-
-                private _aimPosASL = _wfPosASL;
-
-                if (_horizDist < 0.1) then {
-                    _aimPosASL = [
-                        _wfPosASL select 0,
-                        _wfPosASL select 1,
-                        (_originPosASL select 2) + _dz
-                    ];
-                } else {
-                    private _v2 = _turretSpeed ^ 2;
-                    private _v4 = _v2 ^ 2;
-                    private _g = _gravity;
-                    private _term = _v4 - (2 * _g * _dz * _v2) - ((_g ^ 2) * (_horizDist ^ 2));
-
-                    private _chosenAngle = 0;
-
-                    if (_term >= 0) then {
-                        private _sqrtTerm = sqrt _term;
-                        private _denom = _g * _horizDist;
-                        private _lowAngle = atan ((_v2 - _sqrtTerm) / _denom);
-                        private _highAngle = atan ((_v2 + _sqrtTerm) / _denom);
-
-                        // Prefer higher elevation angle where possible for obstacle clearance and dispersion
-                        if (_highAngle <= _effectiveMaxElev && _highAngle >= _minElev) then {
-                            _chosenAngle = _highAngle;
-                        } else {
-                            if (_lowAngle <= _effectiveMaxElev && _lowAngle >= _minElev) then {
-                                _chosenAngle = _lowAngle;
-                            } else {
-                                _chosenAngle = (_lowAngle min _effectiveMaxElev) max _minElev;
-                            };
-                        };
-                    } else {
-                        // Beyond maximum physical range: aim at optimal distance angle
-                        _chosenAngle = (45 min _effectiveMaxElev) max _minElev;
-                    };
-
-                    _aimPosASL = [
-                        _wfPosASL select 0,
-                        _wfPosASL select 1,
-                        (_originPosASL select 2) + (_horizDist * tan _chosenAngle)
-                    ];
-                };
-
-                _gunner doWatch (ASLToAGL _aimPosASL);
-                _gunner lookAt (ASLToAGL _aimPosASL);
-
-                if (_veh currentWeaponTurret _turretPath != _weaponName) then {
-                    _veh selectWeaponTurret [_weaponName, _turretPath];
-                };
-
-                // Position / create local aim helper at high-elevation aim coordinates
-                private _helperVar = format ["WP_aimHelper_%1", _turretPath];
-                private _aimHelper = _veh getVariable [_helperVar, objNull];
-                if (isNull _aimHelper) then {
-                    _aimHelper = createVehicleLocal ["Land_HelipadEmpty_F", ASLToAGL _aimPosASL];
-                    _veh setVariable [_helperVar, _aimHelper];
-                };
-                _aimHelper setPosASL _aimPosASL;
-
-                // Fire sustained burst with sweeping dispersion across the wildfire
-                [_veh, _gunner, _aimHelper, _aimPosASL, _wfTarget, _weaponName] spawn {
-                    params ["_veh", "_gunner", "_aimHelper", "_aimPosASL", "_wfTarget", "_weaponName"];
-
-                    private _burstCount = 8;
-                    for "_i" from 1 to _burstCount do {
-                        if (!alive _veh || isNull _gunner || !alive _gunner) exitWith {};
-                        if (!(_veh getVariable ["WP_suppressionActive", false])) exitWith {};
-
-                        // Natural sweeping dispersion around target
-                        if (!isNull _aimHelper) then {
-                            private _sweepOffset = [
-                                (sin (_i * 45)) * 1.5,
-                                (cos (_i * 45)) * 1.5,
-                                0
-                            ];
-                            _aimHelper setPosASL (_aimPosASL vectorAdd _sweepOffset);
-                        };
-
-                        private _targetObj = if (!isNull _aimHelper) then { _aimHelper } else { _wfTarget };
-                        private _fired = _veh fireAtTarget [_targetObj, _weaponName];
-                        if (!_fired && !isNull _wfTarget) then {
-                            _veh fireAtTarget [_wfTarget, _weaponName];
-                        };
-
-                        sleep 0.1;
-                    };
-                };
+            // Turret elevation limits
+            private _minElev = -10;
+            private _maxElev = 80;
+            private _turretLimits = _veh getTurretLimits _mainTurret;
+            if (count _turretLimits >= 4) then {
+                _minElev = _turretLimits select 2;
+                _maxElev = _turretLimits select 3;
             } else {
-                _gunner doWatch objNull;
-                private _helperVar = format ["WP_aimHelper_%1", _turretPath];
-                private _aimHelper = _veh getVariable [_helperVar, objNull];
-                if (!isNull _aimHelper) then {
-                    deleteVehicle _aimHelper;
-                    _veh setVariable [_helperVar, nil];
+                private _turretCfg = [_veh, _mainTurret] call BIS_fnc_turretConfig;
+                if (isClass _turretCfg) then {
+                    if (isNumber (_turretCfg >> "minElev")) then { _minElev = getNumber (_turretCfg >> "minElev"); };
+                    if (isNumber (_turretCfg >> "maxElev")) then { _maxElev = getNumber (_turretCfg >> "maxElev"); };
                 };
             };
-        } forEach _activeTurretUnits;
+            if (_maxElev <= 0) then { _maxElev = 80; };
+            private _effectiveMaxElev = _maxElev min 85;
 
-        sleep 1.5;
+            // Muzzle velocity
+            private _turretSpeed = _initSpeed;
+            private _currentMag = (_veh magazinesTurret _mainTurret) param [0, ""];
+            if (_currentMag != "") then {
+                private _magSpeed = getNumber (configFile >> "CfgMagazines" >> _currentMag >> "initSpeed");
+                if (_magSpeed > 0) then { _turretSpeed = _magSpeed; };
+            };
+
+            // Origin ASL (gunner eyePos or vehicle position)
+            private _originPosASL = getPosASL _veh;
+            if (!isNull _gunner) then {
+                private _eye = eyePos _gunner;
+                if !(_eye isEqualTo [0, 0, 0]) then {
+                    _originPosASL = _eye;
+                };
+            };
+
+            private _dx = (_wfPosASL select 0) - (_originPosASL select 0);
+            private _dy = (_wfPosASL select 1) - (_originPosASL select 1);
+            private _dz = (_wfPosASL select 2) - (_originPosASL select 2);
+            private _horizDist = sqrt (_dx * _dx + _dy * _dy);
+
+            private _aimPosASL = _wfPosASL;
+
+            if (_horizDist < 0.1) then {
+                _aimPosASL = [
+                    _wfPosASL select 0,
+                    _wfPosASL select 1,
+                    (_originPosASL select 2) + _dz
+                ];
+            } else {
+                private _v2 = _turretSpeed ^ 2;
+                private _v4 = _v2 ^ 2;
+                private _g = _gravity;
+                private _term = _v4 - (2 * _g * _dz * _v2) - ((_g ^ 2) * (_horizDist ^ 2));
+
+                private _chosenAngle = 0;
+
+                if (_term >= 0) then {
+                    private _sqrtTerm = sqrt _term;
+                    private _denom = _g * _horizDist;
+                    private _lowAngle = atan ((_v2 - _sqrtTerm) / _denom);
+                    private _highAngle = atan ((_v2 + _sqrtTerm) / _denom);
+
+                    // Prefer higher elevation angle where possible for obstacle clearance and dispersion
+                    if (_highAngle <= _effectiveMaxElev && _highAngle >= _minElev) then {
+                        _chosenAngle = _highAngle;
+                    } else {
+                        if (_lowAngle <= _effectiveMaxElev && _lowAngle >= _minElev) then {
+                            _chosenAngle = _lowAngle;
+                        } else {
+                            _chosenAngle = (_lowAngle min _effectiveMaxElev) max _minElev;
+                        };
+                    };
+                } else {
+                    // Beyond maximum physical range: aim at optimal distance angle
+                    _chosenAngle = (45 min _effectiveMaxElev) max _minElev;
+                };
+
+                _aimPosASL = [
+                    _wfPosASL select 0,
+                    _wfPosASL select 1,
+                    (_originPosASL select 2) + (_horizDist * tan _chosenAngle)
+                ];
+            };
+
+            _veh doWatch (ASLToAGL _aimPosASL);
+            if (!isNull _gunner) then {
+                _gunner doWatch (ASLToAGL _aimPosASL);
+                _gunner lookAt (ASLToAGL _aimPosASL);
+            };
+
+            private _grp = group _veh;
+            if (!isNull _grp && {combatMode _grp == "BLUE"}) then {
+                _grp setCombatMode "YELLOW";
+            };
+
+            _veh doSuppressiveFire _aimPosASL;
+            private _commander = effectiveCommander _veh;
+            if (!isNull _commander && {_commander != _veh}) then {
+                _commander doSuppressiveFire _aimPosASL;
+            };
+        } else {
+            _veh doWatch objNull;
+            if (!isNull _gunner) then {
+                _gunner doWatch objNull;
+            };
+        };
+
+        sleep 2;
     };
 
-    {
-        private _turretPath = _x;
-        private _helperVar = format ["WP_aimHelper_%1", _turretPath];
-        private _aimHelper = _veh getVariable [_helperVar, objNull];
-        if (!isNull _aimHelper) then {
-            deleteVehicle _aimHelper;
-            _veh setVariable [_helperVar, nil];
-        };
-        private _gunner = _veh turretUnit _turretPath;
-        if (!isNull _gunner) then {
-            _gunner doWatch objNull;
-        };
-    } forEach (allTurrets [_veh, false]);
+    _veh doWatch objNull;
+    if (!isNull (gunner _veh)) then {
+        (gunner _veh) doWatch objNull;
+    };
 
     _veh setVariable ["WP_suppressionActive", false];
     diag_log format ["[WP Firefighting] Fire suppression loop ended for vehicle: %1", typeOf _veh];
