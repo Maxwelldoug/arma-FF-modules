@@ -171,7 +171,7 @@ class CfgVehicles {
         };
 
         class ModuleDescription: ModuleDescription {
-            description = "Waypoint module for vehicles (e.g. fire trucks). Orders available turrets to suppress the closest in-range wildfires, distributing multiple turrets across distinct fires and compensating for ballistic drop.";
+            description = "Waypoint module for vehicles (e.g. fire trucks). Orders the vehicle to suppress the closest in-range wildfire, preferring high-elevation ballistic trajectories for obstacle clearance and water dispersion.";
             sync[] = {"AllVehicles"};
         };
     };
@@ -185,7 +185,7 @@ class CfgWaypoints {
             displayNameDebug = "WP_FireSuppression";
             file = "wp_firefighting\functions\fn_moduleSuppression.sqf";
             icon = "\a3\ui_f\data\igui\cfg\simpletasks\types\defend_ca.paa";
-            tooltip = "Orders vehicle turrets to engage and extinguish nearby wildfires with ballistic drop compensation.";
+            tooltip = "Orders vehicle to engage and extinguish nearby wildfires with high-elevation ballistic suppression.";
         };
     };
 };
