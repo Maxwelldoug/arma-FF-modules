@@ -327,10 +327,14 @@ _vehicle setVariable ["WP_suppressionActive", true];
                 if (_highAngle <= _effectiveMaxElev && _highAngle >= _minElev) then {
                     _chosenAngle = _highAngle;
                 } else {
-                    if (_lowAngle <= _effectiveMaxElev && _lowAngle >= _minElev) then {
-                        _chosenAngle = _lowAngle;
+                    if (_highAngle > _effectiveMaxElev) then {
+                        _chosenAngle = _effectiveMaxElev;
                     } else {
-                        _chosenAngle = (_lowAngle min _effectiveMaxElev) max _minElev;
+                        if (_lowAngle <= _effectiveMaxElev && _lowAngle >= _minElev) then {
+                            _chosenAngle = _lowAngle;
+                        } else {
+                            _chosenAngle = (_lowAngle min _effectiveMaxElev) max _minElev;
+                        };
                     };
                 };
             } else {
@@ -338,11 +342,31 @@ _vehicle setVariable ["WP_suppressionActive", true];
                 _chosenAngle = (45 min _effectiveMaxElev) max _minElev;
             };
 
-            _aimPosASL = [
-                _wfPosASL select 0,
-                _wfPosASL select 1,
-                (_originPosASL select 2) + (_horizDist * tan _chosenAngle)
-            ];
+            if (_chosenAngle <= 0) then {
+                _aimPosASL = _wfPosASL;
+            } else {
+                // Calculate apex (peak) of the projectile ballistic trajectory
+                // t_peak = (v * sin(theta)) / g
+                // d_peak = (v^2 * sin(2 * theta)) / (2 * g)
+                // h_peak = (v^2 * sin(theta)^2) / (2 * g)
+                private _dPeak = ((_turretSpeed ^ 2) * sin (2 * _chosenAngle)) / (2 * _gravity);
+                private _hPeak = ((_turretSpeed ^ 2) * ((sin _chosenAngle) ^ 2)) / (2 * _gravity);
+
+                // If target is reached before peak (e.g. steep uphill), clamp to target distance
+                if (_dPeak >= _horizDist) then {
+                    _dPeak = _horizDist;
+                    _hPeak = _dz;
+                };
+
+                private _dirX = _dx / _horizDist;
+                private _dirY = _dy / _horizDist;
+
+                _aimPosASL = [
+                    (_originPosASL select 0) + (_dirX * _dPeak),
+                    (_originPosASL select 1) + (_dirY * _dPeak),
+                    (_originPosASL select 2) + _hPeak
+                ];
+            };
         };
 
         // Create or update invisible target entity at high-elevation aim coordinates
