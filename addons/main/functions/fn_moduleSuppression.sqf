@@ -183,18 +183,85 @@ _vehicle setVariable ["WP_suppressionActive", true];
                 private _wfTarget = (_candidateWildfires select _targetIndex) select 1;
                 private _wfPosASL = getPosASL _wfTarget;
 
-                private _dx = (_wfPosASL select 0) - (_vehPos select 0);
-                private _dy = (_wfPosASL select 1) - (_vehPos select 1);
+                // Turret elevation limits
+                private _minElev = -10;
+                private _maxElev = 80;
+                private _turretLimits = _veh getTurretLimits _turretPath;
+                if (count _turretLimits >= 4) then {
+                    _minElev = _turretLimits select 2;
+                    _maxElev = _turretLimits select 3;
+                } else {
+                    private _turretCfg = [_veh, _turretPath] call BIS_fnc_turretConfig;
+                    if (isClass _turretCfg) then {
+                        if (isNumber (_turretCfg >> "minElev")) then { _minElev = getNumber (_turretCfg >> "minElev"); };
+                        if (isNumber (_turretCfg >> "maxElev")) then { _maxElev = getNumber (_turretCfg >> "maxElev"); };
+                    };
+                };
+                if (_maxElev <= 0) then { _maxElev = 80; };
+                private _effectiveMaxElev = _maxElev min 85;
+
+                // Muzzle velocity
+                private _turretSpeed = _initSpeed;
+                private _currentMag = (_veh magazinesTurret _turretPath) param [0, ""];
+                if (_currentMag != "") then {
+                    private _magSpeed = getNumber (configFile >> "CfgMagazines" >> _currentMag >> "initSpeed");
+                    if (_magSpeed > 0) then { _turretSpeed = _magSpeed; };
+                };
+
+                // Turret origin ASL
+                private _originPosASL = eyePos _gunner;
+                if (_originPosASL isEqualTo [0, 0, 0]) then {
+                    _originPosASL = getPosASL _veh;
+                };
+
+                private _dx = (_wfPosASL select 0) - (_originPosASL select 0);
+                private _dy = (_wfPosASL select 1) - (_originPosASL select 1);
+                private _dz = (_wfPosASL select 2) - (_originPosASL select 2);
                 private _horizDist = sqrt (_dx * _dx + _dy * _dy);
 
-                private _timeOfFlight = _horizDist / _initSpeed;
-                private _drop = 0.5 * _gravity * (_timeOfFlight ^ 2);
+                private _aimPosASL = _wfPosASL;
 
-                private _aimPosASL = [
-                    _wfPosASL select 0,
-                    _wfPosASL select 1,
-                    (_wfPosASL select 2) + _drop
-                ];
+                if (_horizDist < 0.1) then {
+                    _aimPosASL = [
+                        _wfPosASL select 0,
+                        _wfPosASL select 1,
+                        (_originPosASL select 2) + _dz
+                    ];
+                } else {
+                    private _v2 = _turretSpeed ^ 2;
+                    private _v4 = _v2 ^ 2;
+                    private _g = _gravity;
+                    private _term = _v4 - (2 * _g * _dz * _v2) - ((_g ^ 2) * (_horizDist ^ 2));
+
+                    private _chosenAngle = 0;
+
+                    if (_term >= 0) then {
+                        private _sqrtTerm = sqrt _term;
+                        private _denom = _g * _horizDist;
+                        private _lowAngle = atan ((_v2 - _sqrtTerm) / _denom);
+                        private _highAngle = atan ((_v2 + _sqrtTerm) / _denom);
+
+                        // Prefer higher elevation angle where possible for obstacle clearance and dispersion
+                        if (_highAngle <= _effectiveMaxElev && _highAngle >= _minElev) then {
+                            _chosenAngle = _highAngle;
+                        } else {
+                            if (_lowAngle <= _effectiveMaxElev && _lowAngle >= _minElev) then {
+                                _chosenAngle = _lowAngle;
+                            } else {
+                                _chosenAngle = (_lowAngle min _effectiveMaxElev) max _minElev;
+                            };
+                        };
+                    } else {
+                        // Beyond maximum physical range: aim at optimal distance angle
+                        _chosenAngle = (45 min _effectiveMaxElev) max _minElev;
+                    };
+
+                    _aimPosASL = [
+                        _wfPosASL select 0,
+                        _wfPosASL select 1,
+                        (_originPosASL select 2) + (_horizDist * tan _chosenAngle)
+                    ];
+                };
 
                 _gunner doWatch (ASLToAGL _aimPosASL);
                 _gunner lookAt (ASLToAGL _aimPosASL);
