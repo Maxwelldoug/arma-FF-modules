@@ -327,32 +327,35 @@ _vehicle setVariable ["WP_suppressionActive", true];
         };
         _suppressTarget setPosASL _aimPosASL;
 
-        // Reveal target to vehicle group
+        // Reveal target to vehicle group and ensure combat-ready state
         private _grp = group _veh;
         if (isNull _grp && {!isNull _gunner}) then { _grp = group _gunner; };
         if (!isNull _grp) then {
             _grp reveal [_suppressTarget, 4];
-            if (combatMode _grp == "BLUE") then {
-                _grp setCombatMode "YELLOW";
-            };
+            _grp setCombatMode "RED";
+            _grp setBehaviour "COMBAT";
+        };
+        if (!isNull _gunner && {group _gunner != _grp}) then {
+            (group _gunner) reveal [_suppressTarget, 4];
+            (group _gunner) setCombatMode "RED";
+            (group _gunner) setBehaviour "COMBAT";
         };
 
-        _veh doWatch (ASLToAGL _aimPosASL);
-        if (!isNull _gunner) then {
-            _gunner doWatch (ASLToAGL _aimPosASL);
-            _gunner lookAt (ASLToAGL _aimPosASL);
-        };
-
+        // Order suppressive fire onto target without doWatch interruption
         _veh doSuppressiveFire _suppressTarget;
-        private _commander = effectiveCommander _veh;
-        if (!isNull _commander && {_commander != _veh}) then {
-            _commander doSuppressiveFire _suppressTarget;
-        };
-        if (!isNull _gunner && {_gunner != _commander}) then {
+        if (!isNull _gunner) then {
             _gunner doSuppressiveFire _suppressTarget;
         };
 
-        sleep 2;
+        // Allow sustained suppressive fire burst to complete before re-evaluating
+        private _suppressEndTime = time + 8;
+        waitUntil {
+            sleep 1;
+            time >= _suppressEndTime
+            || !alive _veh
+            || !(_veh getVariable ["WP_suppressionActive", false])
+            || !someAmmo _veh
+        };
     };
 
     if (!isNull _suppressTarget) then {
