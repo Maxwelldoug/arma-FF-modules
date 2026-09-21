@@ -303,11 +303,11 @@ _vehicle setVariable ["WP_suppressionActive", true];
 
         private _aimPosASL = _wfPosASL;
 
-        if (_horizDist < 0.1) then {
+        if (_horizDist < 2) then {
             _aimPosASL = [
                 _wfPosASL select 0,
                 _wfPosASL select 1,
-                (_originPosASL select 2) + _dz
+                (_originPosASL select 2) + 5
             ];
         } else {
             private _v2 = _turretSpeed ^ 2;
@@ -324,11 +324,13 @@ _vehicle setVariable ["WP_suppressionActive", true];
                 private _highAngle = atan ((_v2 + _sqrtTerm) / _denom);
 
                 // Prefer higher elevation angle where possible for obstacle clearance and dispersion
-                if (_highAngle <= _effectiveMaxElev && _highAngle >= _minElev) then {
+                private _practicalMaxElev = _effectiveMaxElev min 55;
+
+                if (_highAngle <= _practicalMaxElev && _highAngle >= _minElev) then {
                     _chosenAngle = _highAngle;
                 } else {
-                    if (_highAngle > _effectiveMaxElev) then {
-                        _chosenAngle = _effectiveMaxElev;
+                    if (_practicalMaxElev >= _lowAngle && _practicalMaxElev >= _minElev) then {
+                        _chosenAngle = _practicalMaxElev;
                     } else {
                         if (_lowAngle <= _effectiveMaxElev && _lowAngle >= _minElev) then {
                             _chosenAngle = _lowAngle;
@@ -342,31 +344,19 @@ _vehicle setVariable ["WP_suppressionActive", true];
                 _chosenAngle = (45 min _effectiveMaxElev) max _minElev;
             };
 
-            if (_chosenAngle <= 0) then {
-                _aimPosASL = _wfPosASL;
-            } else {
-                // Calculate apex (peak) of the projectile ballistic trajectory
-                // t_peak = (v * sin(theta)) / g
-                // d_peak = (v^2 * sin(2 * theta)) / (2 * g)
-                // h_peak = (v^2 * sin(theta)^2) / (2 * g)
-                private _dPeak = ((_turretSpeed ^ 2) * sin (2 * _chosenAngle)) / (2 * _gravity);
-                private _hPeak = ((_turretSpeed ^ 2) * ((sin _chosenAngle) ^ 2)) / (2 * _gravity);
+            // Place target at the peak (apex) of the ballistic trajectory arc
+            // At the horizontal midpoint (x = d / 2), the ballistic height above origin is:
+            // z_mid = (d * tan(theta) + dz) / 4
+            private _zMid = ((_horizDist * tan _chosenAngle) + _dz) / 4;
 
-                // If target is reached before peak (e.g. steep uphill), clamp to target distance
-                if (_dPeak >= _horizDist) then {
-                    _dPeak = _horizDist;
-                    _hPeak = _dz;
-                };
+            // Ensure the peak target is elevated above line-of-sight to clear obstacles
+            _zMid = _zMid max ((_dz / 2) + 3);
 
-                private _dirX = _dx / _horizDist;
-                private _dirY = _dy / _horizDist;
-
-                _aimPosASL = [
-                    (_originPosASL select 0) + (_dirX * _dPeak),
-                    (_originPosASL select 1) + (_dirY * _dPeak),
-                    (_originPosASL select 2) + _hPeak
-                ];
-            };
+            _aimPosASL = [
+                (_originPosASL select 0) + (_dx * 0.5),
+                (_originPosASL select 1) + (_dy * 0.5),
+                (_originPosASL select 2) + _zMid
+            ];
         };
 
         // Create or update invisible target entity at high-elevation aim coordinates
