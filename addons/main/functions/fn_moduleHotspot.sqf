@@ -38,6 +38,26 @@ diag_log format ["[WP Firefighting] Initializing Hotspot module: %1 at %2", _log
 private _intensityRaw = _logic getVariable ["intensity", _logic getVariable ["WP_Module_Hotspot_intensity", 100]];
 private _newIntensity = ((_intensityRaw max 0) min 100) / 100;
 
+// Retrieve module area definition: check for trigger object in "areas" variable first, fall back to "objectArea"
+private _areas = _logic getVariable ["areas", []];
+private _areaTrigger = if (count _areas > 0) then { _areas select 0 } else { objNull };
+
+private _center = getPosWorld _logic;
+private _areaDef = if (!isNull _areaTrigger) then {
+    _areaTrigger
+} else {
+    private _area = _logic getVariable ["objectArea", [30, 30, 0, false]];
+    _area params [
+        ["_a", 30, [0]],
+        ["_b", 30, [0]],
+        ["_angle", 0, [0]],
+        ["_isRectangle", false, [false]]
+    ];
+    if (_a <= 0) then { _a = 30; };
+    if (_b <= 0) then { _b = 30; };
+    [_center, _a, _b, _angle, _isRectangle]
+};
+
 // Gather candidate wildfire modules
 private _candidateWildfires = [];
 
@@ -59,7 +79,13 @@ private _affectedWildfires = [];
 
 {
     private _wf = _x;
-    if (!isNull _wf && { (getPos _wf) inArea _logic }) then {
+    private _inHotspot = if (count _areas > 0) then {
+        _areas findIf { !isNull _x && { (getPos _wf) inArea _x } } != -1
+    } else {
+        (getPos _wf) inArea _areaDef
+    };
+
+    if (!isNull _wf && { _inHotspot }) then {
         private _currentOverride = _wf getVariable ["WP_hotspotIntensity", -1];
 
         if (_newIntensity > _currentOverride) then {
@@ -76,6 +102,11 @@ private _affectedWildfires = [];
 } forEach _candidateWildfires;
 
 diag_log format ["[WP Firefighting] Hotspot %1 affected %2 wildfire nodes.", _logic, count _affectedWildfires];
+
+// Clean up associated trigger entities created for the module
+{
+    if (!isNull _x) then { deleteVehicle _x; };
+} forEach _areas;
 
 // Delete the module entity after setup
 deleteVehicle _logic;
