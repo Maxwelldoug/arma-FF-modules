@@ -9,7 +9,7 @@
         0: ARRAY of Objects - Source wildfire modules to connect.
         1: ARRAY of Objects - Candidate wildfire modules to connect with (can be same array or different).
         2: NUMBER - Spacing distance between modules.
-        3: NUMBER - Tolerance factor (default: 1.05 = 5% extra radius).
+        3: NUMBER - Tolerance factor (default: 1.25 = 25% extra radius. Accounts for terrain elevation).
 
     Returns:
         NUMBER - Count of synchronization links created.
@@ -19,7 +19,7 @@ params [
     ["_sourceWildfires", [], [[]]],
     ["_targetWildfires", [], [[]]],
     ["_spacing", 15, [0]],
-    ["_tolerance", 1.05, [0]]
+    ["_tolerance", 1.25, [0]]
 ];
 
 private _maxDistance = _spacing * _tolerance;
